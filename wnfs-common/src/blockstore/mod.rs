@@ -57,7 +57,6 @@ mod carblockstore;
 mod clientnetworkblockstore;
 mod diskblockstore;
 mod memoryblockstore;
-mod test;
 mod threadsafememoryblockstore;
 pub use carblockstore::CarBlockStore;
 pub use clientnetworkblockstore::ClientNetworkBlockStore;
@@ -84,15 +83,15 @@ mod tests {
 
         // Insert the objects into the blockstore
         let first_cid = store.put_serializable(&first_bytes).await.unwrap();
-        // let second_cid = store.put_serializable(&second_bytes).await.unwrap();
+        let second_cid = store.put_serializable(&second_bytes).await.unwrap();
 
         // Retrieve the objects from the blockstore
         let first_loaded: Vec<u8> = store.get_deserializable(&first_cid).await.unwrap();
-        // let second_loaded: Vec<u8> = store.get_deserializable(&second_cid).await.unwrap();
+        let second_loaded: Vec<u8> = store.get_deserializable(&second_cid).await.unwrap();
 
         // Assert that the objects are the same as the ones we inserted
         assert_eq!(first_loaded, first_bytes);
-        // assert_eq!(second_loaded, second_bytes);
+        assert_eq!(second_loaded, second_bytes);
 
         // Return Ok
         Ok(())
@@ -181,13 +180,9 @@ mod tests {
 
     #[tokio::test]
     async fn network_blockstore() {
-        // Start the server BlockStore listening on 8080
+        // Connect to the local IPFS kubo node running on this address and port
         let store = &mut ClientNetworkBlockStore::new(Ipv4Addr::new(127, 0, 0, 1), 5001).await;
-
-        // Put a block!
-        let cid = store.put_block(b"Hello world!".to_vec(), IpldCodec::Raw).await.unwrap();
-
-        println!("result of putting cid: {}", cid.to_string());
-        // store.test().await.unwrap();
+        bs_retrieval(store).await.unwrap();
+        bs_duplication(store).await.unwrap();
     }
 }
