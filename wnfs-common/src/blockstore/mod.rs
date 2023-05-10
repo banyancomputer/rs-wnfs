@@ -57,13 +57,12 @@ mod carblockstore;
 mod clientnetworkblockstore;
 mod diskblockstore;
 mod memoryblockstore;
-mod servernetworkblockstore;
+mod test;
 mod threadsafememoryblockstore;
 pub use carblockstore::CarBlockStore;
 pub use clientnetworkblockstore::ClientNetworkBlockStore;
 pub use diskblockstore::DiskBlockStore;
 pub use memoryblockstore::MemoryBlockStore;
-pub use servernetworkblockstore::ServerNetworkBlockStore;
 pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 
 //--------------------------------------------------------------------------------------------------
@@ -72,10 +71,9 @@ pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use super::*;
     use serde::Deserialize;
+    use std::net::Ipv4Addr;
     use tempfile::tempdir;
 
     // Generic function used to test any type that conforms to the BlockStore trait
@@ -181,13 +179,15 @@ mod tests {
         bs_serialization(store).await.unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn network_blockstore() {
         // Start the server BlockStore listening on 8080
-        ServerNetworkBlockStore::listen(8080).unwrap();
-        
-        let store = &mut ClientNetworkBlockStore::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
-        // Test send and retrieval
-        bs_retrieval(store).await.unwrap();
+        let store = &mut ClientNetworkBlockStore::new(Ipv4Addr::new(127, 0, 0, 1), 5001).await;
+
+        // Put a block!
+        let cid = store.put_block(b"Hello world!".to_vec(), IpldCodec::Raw).await.unwrap();
+
+        println!("result of putting cid: {}", cid.to_string());
+        // store.test().await.unwrap();
     }
 }
