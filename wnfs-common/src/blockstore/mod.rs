@@ -54,14 +54,14 @@ pub trait BlockStore: Sized {
 }
 
 mod carblockstore;
-mod clientnetworkblockstore;
 mod diskblockstore;
 mod memoryblockstore;
+mod networkblockstore;
 mod threadsafememoryblockstore;
 pub use carblockstore::CarBlockStore;
-pub use clientnetworkblockstore::ClientNetworkBlockStore;
 pub use diskblockstore::DiskBlockStore;
 pub use memoryblockstore::MemoryBlockStore;
+pub use networkblockstore::NetworkBlockStore;
 pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 
 //--------------------------------------------------------------------------------------------------
@@ -76,7 +76,7 @@ mod tests {
     use tempfile::tempdir;
 
     // Generic function used to test any type that conforms to the BlockStore trait
-    async fn bs_retrieval<T: BlockStore + Send + 'static>(store: &mut T) -> Result<()> {
+    async fn bs_retrieval<T: BlockStore + Send + 'static>(store: &T) -> Result<()> {
         // Example objects to insert and remove from the blockstore
         let first_bytes = vec![1, 2, 3, 4, 5];
         let second_bytes = b"hello world".to_vec();
@@ -98,7 +98,7 @@ mod tests {
     }
 
     // Generic function used to test any type that conforms to the BlockStore trait
-    async fn bs_duplication<T: BlockStore + Send + 'static>(store: &mut T) -> Result<()> {
+    async fn bs_duplication<T: BlockStore + Send + 'static>(store: &T) -> Result<()> {
         // Example objects to insert and remove from the blockstore
         let first_bytes = vec![1, 2, 3, 4, 5];
         let second_bytes = first_bytes.clone();
@@ -127,7 +127,7 @@ mod tests {
     async fn bs_serialization<
         T: BlockStore + Send + Serialize + 'static + for<'de> Deserialize<'de>,
     >(
-        store: &mut T,
+        store: &T,
     ) -> Result<()> {
         // Example objects to insert and remove from the blockstore
         let bytes = vec![1, 2, 3, 4, 5];
@@ -152,7 +152,7 @@ mod tests {
 
     #[async_std::test]
     async fn memory_blockstore() {
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
     }
@@ -160,7 +160,7 @@ mod tests {
     #[async_std::test]
     async fn disk_blockstore() {
         let path = tempdir().unwrap().into_path();
-        let store = &mut DiskBlockStore::new(&path);
+        let store = &DiskBlockStore::new(&path);
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
         bs_serialization(store).await.unwrap();
@@ -172,7 +172,7 @@ mod tests {
         let path = tempdir().unwrap().into_path();
         // Create a CarBlockStore with a capacity one fewer than the blocks being inserted
         // This ensures rotation is functioning correctly, too
-        let store = &mut CarBlockStore::new(&path, Some(4));
+        let store = &CarBlockStore::new(&path, Some(4));
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
         bs_serialization(store).await.unwrap();
@@ -181,7 +181,7 @@ mod tests {
     #[tokio::test]
     async fn network_blockstore() {
         // Connect to the local IPFS kubo node running on this address and port
-        let store = &mut ClientNetworkBlockStore::new(Ipv4Addr::new(127, 0, 0, 1), 5001).await;
+        let store = &NetworkBlockStore::new(Ipv4Addr::new(127, 0, 0, 1), 5001);
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
     }
