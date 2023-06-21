@@ -2,13 +2,12 @@ mod directory;
 mod encrypted;
 mod file;
 mod forest;
+pub mod keys;
 mod link;
 mod node;
 mod previous;
 mod privateref;
 pub mod share;
-pub mod keys;
-
 
 pub use directory::*;
 pub use file::*;

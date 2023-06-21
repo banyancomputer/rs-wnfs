@@ -1,15 +1,14 @@
 use crate::error::RsaError;
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rsa::{
-    pkcs8::{LineEnding, EncodePrivateKey, DecodePrivateKey},
+    pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding},
     traits::PublicKeyParts,
-    BigUint, Oaep
+    BigUint, Oaep,
 };
-use spki::{EncodePublicKey, DecodePublicKey};
+use sha1::{Digest, Sha1};
 use sha2::Sha256;
-use sha1::{Sha1, Digest};
+use spki::{DecodePublicKey, EncodePublicKey};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -117,7 +116,7 @@ impl RsaPrivateKey {
     }
 
     /// Writes the private key to a PKCS#8 PEM file.
-    /// 
+    ///
     /// # Arguments
     /// path - The path to the file to write to.
     pub fn to_pem_file(&self, path: impl AsRef<std::path::Path>) -> Result<()> {
@@ -127,7 +126,7 @@ impl RsaPrivateKey {
     }
 
     /// Reads the private key from a PKCS#8 PEM file.
-    /// 
+    ///
     /// # Arguments
     /// path - The path to the file to read from.
     pub fn from_pem_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
@@ -136,7 +135,7 @@ impl RsaPrivateKey {
     }
 
     /// Reads the private key from DER bytes.
-    /// 
+    ///
     /// # Arguments
     /// bytes - The DER bytes to read from.
     pub fn from_der(bytes: &[u8]) -> Result<Self> {
@@ -188,7 +187,7 @@ impl PrivateKey for RsaPrivateKey {
 #[cfg(test)]
 mod test {
     use super::*;
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::{engine::general_purpose, Engine as _};
     use hex_literal::hex;
 
     #[async_std::test]
@@ -210,7 +209,7 @@ mod test {
         let pub_key = priv_key.get_public_key();
         let plaintext = b"Hello, world!";
         let path = "private_key.pem";
-        
+
         priv_key.to_pem_file(path).unwrap();
         let priv_key_from_file = RsaPrivateKey::from_pem_file(path).unwrap();
 
@@ -218,7 +217,10 @@ mod test {
         std::fs::remove_file(path).unwrap();
 
         let ciphertext_from_file = pub_key.encrypt(plaintext).await.unwrap();
-        let decrypted_from_file = priv_key_from_file.decrypt(&ciphertext_from_file).await.unwrap();
+        let decrypted_from_file = priv_key_from_file
+            .decrypt(&ciphertext_from_file)
+            .await
+            .unwrap();
 
         assert_eq!(plaintext, &decrypted_from_file[..]);
     }
@@ -229,7 +231,7 @@ mod test {
         let pub_key = priv_key.get_public_key();
         let plaintext = b"Hello, world!";
         let path = "public_key.pem";
-        
+
         pub_key.to_pem_file(path).unwrap();
         let pub_key_from_file = RsaPublicKey::from_pem_file(path).unwrap();
 
@@ -268,7 +270,10 @@ mod test {
         let spki_bytes = general_purpose::STANDARD.decode(SPKI_STRING).unwrap();
         let pub_key = RsaPublicKey::from_der(&spki_bytes).unwrap();
         let fingerprint = pub_key.get_sha1_fingerprint().unwrap();
-        assert_eq!(fingerprint, hex!("d2b0c3e8873d95b95fe9195952eb016b9d5e5125"));
+        assert_eq!(
+            fingerprint,
+            hex!("d2b0c3e8873d95b95fe9195952eb016b9d5e5125")
+        );
     }
 
     #[async_std::test]
