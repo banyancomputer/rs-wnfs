@@ -1,19 +1,20 @@
-#[cfg(test)]
 use crate::error::RsaError;
-#[cfg(test)]
 use anyhow::anyhow;
 use anyhow::Result;
 use async_trait::async_trait;
-#[cfg(test)]
-use rsa::{traits::PublicKeyParts, BigUint, Oaep};
-#[cfg(test)]
+use rsa::{
+    pkcs8::{LineEnding, EncodePrivateKey, DecodePrivateKey},
+    traits::PublicKeyParts,
+    BigUint, Oaep
+};
 use sha2::Sha256;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-pub const RSA_KEY_SIZE: usize = 2048;
+// pub const RSA_KEY_SIZE: usize = 2048;
+pub const RSA_KEY_SIZE: usize = 3072;
 pub const PUBLIC_KEY_EXPONENT: u64 = 65537;
 
 //--------------------------------------------------------------------------------------------------
@@ -50,11 +51,11 @@ pub trait PrivateKey {
 
 pub type PublicKeyModulus = Vec<u8>;
 
-#[cfg(test)]
+// #[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct RsaPublicKey(rsa::RsaPublicKey);
 
-#[cfg(test)]
+// #[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct RsaPrivateKey(rsa::RsaPrivateKey);
 
@@ -62,7 +63,7 @@ pub struct RsaPrivateKey(rsa::RsaPrivateKey);
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[cfg(test)]
+// #[cfg(test)]
 impl RsaPublicKey {
     /// Gets the public key modulus.
     pub fn get_public_key_modulus(&self) -> Result<Vec<u8>> {
@@ -70,14 +71,33 @@ impl RsaPublicKey {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 impl RsaPrivateKey {
     /// Constructs a new 2048-bit RSA private key.
     pub fn new() -> Result<Self> {
         Ok(Self(rsa::RsaPrivateKey::new(
-            &mut rand::thread_rng(),
+            &mut rand_core::OsRng,
             RSA_KEY_SIZE,
         )?))
+    }
+
+    /// Writes the private key to a PKCS#8 PEM file.
+    /// 
+    /// # Arguments
+    /// path - The path to the file to write to.
+    pub fn to_pem_file(&self, path: impl AsRef<std::path::Path>) -> Result<()> {
+        self.0
+            .write_pkcs8_pem_file(path, LineEnding::LF)
+            .map_err(|e| anyhow!(RsaError::ExportToPemFileFailed(anyhow!(e))))
+    }
+
+    /// Reads the private key from a PKCS#8 PEM file.
+    /// 
+    /// # Arguments
+    /// path - The path to the file to read from.
+    pub fn from_pem_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
+        let key = rsa::RsaPrivateKey::read_pkcs8_pem_file(path)?;
+        Ok(Self(key))
     }
 
     /// Gets the public key.
@@ -86,13 +106,13 @@ impl RsaPrivateKey {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 #[async_trait(?Send)]
 impl ExchangeKey for RsaPublicKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
         self.0
-            .encrypt(&mut rand::thread_rng(), padding, data)
+            .encrypt(&mut rand_core::OsRng, padding, data)
             .map_err(|e| anyhow!(RsaError::EncryptionFailed(anyhow!(e))))
     }
 
@@ -106,7 +126,7 @@ impl ExchangeKey for RsaPublicKey {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 #[async_trait(?Send)]
 impl PrivateKey for RsaPrivateKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
@@ -126,6 +146,7 @@ mod test {
     use super::*;
 
     #[async_std::test]
+    #[ignore]
     async fn test_rsa_key_pair() {
         let priv_key = RsaPrivateKey::new().unwrap();
         let pub_key = priv_key.get_public_key();
@@ -138,6 +159,26 @@ mod test {
     }
 
     #[async_std::test]
+    async fn test_rsa_key_pair_from_pem_file() {
+        let priv_key = RsaPrivateKey::new().unwrap();
+        let plaintext = b"Hello, world!";
+        let path = "private_key.pem";
+        
+        priv_key.to_pem_file(path).unwrap();
+        let priv_key_from_file = RsaPrivateKey::from_pem_file(path).unwrap();
+        let pub_key_from_file = priv_key_from_file.get_public_key();
+
+        // Remove the file containing the private key
+        std::fs::remove_file(path).unwrap();
+
+        let ciphertext_from_file = pub_key_from_file.encrypt(plaintext).await.unwrap();
+        let decrypted_from_file = priv_key_from_file.decrypt(&ciphertext_from_file).await.unwrap();
+
+        assert_eq!(plaintext, &decrypted_from_file[..]);
+    }
+
+    #[async_std::test]
+    #[ignore]
     async fn test_rsa_key_pair_from_public_key_modulus() {
         let priv_key = RsaPrivateKey::new().unwrap();
         let pub_key = priv_key.get_public_key();

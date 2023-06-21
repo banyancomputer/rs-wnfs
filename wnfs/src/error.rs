@@ -76,7 +76,6 @@ pub enum AesError {
 }
 
 /// RSA related errors
-#[cfg(test)]
 #[derive(Debug, Error)]
 pub enum RsaError {
     #[error("Invalid public key: {0}")]
@@ -87,4 +86,10 @@ pub enum RsaError {
 
     #[error("Decryption failed: {0}")]
     DecryptionFailed(anyhow::Error),
+
+    #[error("Export to pem file failed: {0}")]
+    ExportToPemFileFailed(anyhow::Error),
+
+    #[error("Import from pem file failed: {0}")]
+    ImportFromPemFileFailed(anyhow::Error),
 }
