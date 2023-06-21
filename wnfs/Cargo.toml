@@ -16,6 +16,9 @@ repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
+
 [dependencies]
 aes-gcm = "0.10"
 aes-kw = { version = "0.2", features = ["alloc"] }
@@ -41,9 +44,10 @@ wnfs-common = { path = "../wnfs-common", version = "0.1.21" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.21" }
 wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.21" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
-rsa = { version = "0.9.2", features = ["pem"]}
+rsa = { version = "0.9.2", features = ["pem", "std"]}
 sha2 = "0.10"
 spki = "0.7.2"
+base64 = "0.21.2"
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }

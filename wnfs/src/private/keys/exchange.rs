@@ -7,6 +7,7 @@ use rsa::{
     traits::PublicKeyParts,
     BigUint, Oaep
 };
+use spki::{EncodePublicKey, DecodePublicKey};
 use sha2::Sha256;
 
 //--------------------------------------------------------------------------------------------------
@@ -68,6 +69,23 @@ impl RsaPublicKey {
     /// Gets the public key modulus.
     pub fn get_public_key_modulus(&self) -> Result<Vec<u8>> {
         Ok(self.0.n().to_bytes_le())
+    }
+
+    /// Writes the public key to a SPKI PEM file.
+    /// # Arguments
+    /// path - The path to the file to write to.
+    pub fn to_pem_file(&self, path: impl AsRef<std::path::Path>) -> Result<()> {
+        self.0
+            .write_public_key_pem_file(path, LineEnding::LF)
+            .map_err(|e| anyhow!(RsaError::ExportToPemFileFailed(anyhow!(e))))
+    }
+
+    /// Reads the public key from a SPKI PEM file.
+    /// # Arguments
+    /// path - The path to the file to read from.
+    pub fn from_pem_file(path: impl AsRef<std::path::Path>) -> Result<Self> {
+        let key = rsa::RsaPublicKey::read_public_key_pem_file(path)?;
+        Ok(Self(key))
     }
 }
 
@@ -159,20 +177,39 @@ mod test {
     }
 
     #[async_std::test]
-    async fn test_rsa_key_pair_from_pem_file() {
+    async fn test_rsa_priv_key_from_pem_file() {
         let priv_key = RsaPrivateKey::new().unwrap();
+        let pub_key = priv_key.get_public_key();
         let plaintext = b"Hello, world!";
         let path = "private_key.pem";
         
         priv_key.to_pem_file(path).unwrap();
         let priv_key_from_file = RsaPrivateKey::from_pem_file(path).unwrap();
-        let pub_key_from_file = priv_key_from_file.get_public_key();
+
+        // Remove the file containing the private key
+        std::fs::remove_file(path).unwrap();
+
+        let ciphertext_from_file = pub_key.encrypt(plaintext).await.unwrap();
+        let decrypted_from_file = priv_key_from_file.decrypt(&ciphertext_from_file).await.unwrap();
+
+        assert_eq!(plaintext, &decrypted_from_file[..]);
+    }
+
+    #[async_std::test]
+    async fn test_rsa_pub_key_from_pem_file() {
+        let priv_key = RsaPrivateKey::new().unwrap();
+        let pub_key = priv_key.get_public_key();
+        let plaintext = b"Hello, world!";
+        let path = "public_key.pem";
+        
+        pub_key.to_pem_file(path).unwrap();
+        let pub_key_from_file = RsaPublicKey::from_pem_file(path).unwrap();
 
         // Remove the file containing the private key
         std::fs::remove_file(path).unwrap();
 
         let ciphertext_from_file = pub_key_from_file.encrypt(plaintext).await.unwrap();
-        let decrypted_from_file = priv_key_from_file.decrypt(&ciphertext_from_file).await.unwrap();
+        let decrypted_from_file = priv_key.decrypt(&ciphertext_from_file).await.unwrap();
 
         assert_eq!(plaintext, &decrypted_from_file[..]);
     }
