@@ -75,7 +75,7 @@ impl RsaPublicKey {
         let doc = self.0.to_public_key_der()?;
         let der_bytes = doc.as_bytes();
         let mut hasher = Sha1::new();
-        hasher.update(&der_bytes);
+        hasher.update(der_bytes);
         Ok(hasher.finalize().to_vec())
     }
 
@@ -191,7 +191,6 @@ mod test {
     use hex_literal::hex;
 
     #[async_std::test]
-    #[ignore]
     async fn test_rsa_key_pair() {
         let priv_key = RsaPrivateKey::new().unwrap();
         let pub_key = priv_key.get_public_key();
