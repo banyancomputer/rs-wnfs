@@ -47,11 +47,11 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 rsa = { version = "0.9.2", features = ["pem", "std"]}
 sha2 = "0.10"
 spki = "0.7.2"
-base64 = "0.21.2"
 sha1 = "0.10.5"
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
+base64 = "0.21.2"
 env_logger = "0.10"
 hex-literal = "0.4.1"
 proptest = "1.1"
