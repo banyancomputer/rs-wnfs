@@ -120,8 +120,8 @@ where
     /// ```
     pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: DeserializeOwned + AsRef<[u8]> + Debug,
+        V: DeserializeOwned + Debug,
     {
         let hash = &H::hash(key);
 
@@ -200,15 +200,23 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: DeserializeOwned + AsRef<[u8]> + Debug,
+        V: DeserializeOwned + Debug,
     {
         #[cfg(feature = "log")]
         debug!("get_by_hash: hash = {:02x?}", hash);
 
+        let mut hashnibble = HashNibbles::new(hash);
+
+        println!("get_by_hash: hash = {:02x?}, digest = {:?}", hash, hashnibble.digest);
+
         Ok(self
-            .get_value(&mut HashNibbles::new(hash), store)
-            .await?
+            .get_value(&mut hashnibble, store)
+            .await
+            .map_err(|err| {
+                println!("woah!!!! {}", err);
+                err
+            })?
             .map(|pair| &pair.value))
     }
 
@@ -375,12 +383,12 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: DeserializeOwned + AsRef<[u8]> + Debug,
+        V: DeserializeOwned + Debug,
     {
         let bit_index = hashnibbles.try_next()?;
 
-        // If the bit is not set yet, return None.
+
         if !self.bitmask[bit_index] {
             return Ok(None);
         }
@@ -388,11 +396,16 @@ where
         let value_index = self.get_value_index(bit_index);
         match &self.pointers[value_index] {
             Pointer::Values(values) => Ok({
+                println!("trying find hashnibble {:?} in mysterious array", hashnibbles.digest);
+                for value in values {
+                    println!("key: {:?} value: {:?}", &H::hash(&value.key), value.value);
+                }
                 values
                     .iter()
                     .find(|p| &H::hash(&p.key) == hashnibbles.digest)
             }),
             Pointer::Link(link) => {
+                println!("trying to resolve value for {:?}", link.get_cid());
                 let child = link.resolve_value(store).await?;
                 child.get_value(hashnibbles, store).await
             }

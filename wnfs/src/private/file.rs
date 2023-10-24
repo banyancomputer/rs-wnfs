@@ -351,7 +351,7 @@ impl PrivateFile {
             match &self.content.content {
                 FileContent::Inline { data } => {
                     if index != 0 {
-                        Err(FsError::FileShardNotFound)?
+                        Err(FsError::DirectoryAlreadyExists)?
                     }
 
                     yield data.clone()
@@ -362,7 +362,8 @@ impl PrivateFile {
                     ..
                 } => {
                     let bare_name = &self.header.bare_name;
-                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
+                    let shard_labels = Self::generate_shard_labels(key, index,  *block_count, bare_name);
+                    for label in shard_labels {
                         let bytes = Self::decrypt_block(key, &label, forest, store).await?;
                         yield bytes
                     }
@@ -591,20 +592,32 @@ impl PrivateFile {
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
 
-        let cids = forest
-            .get_encrypted(label_hash, store)
-            .await?
-            .ok_or(FsError::FileShardNotFound)?;
+        println!("label_hash: {:?}", label_hash);
 
-        let cid = cids
-            .iter()
-            .next()
-            .expect("Expected set with at least a Cid");
-
-        let enc_bytes = store.get_block(cid).await?;
-        let bytes = key.decrypt(&enc_bytes)?;
-
-        Ok(bytes)
+        match forest
+        .get_encrypted(label_hash, store)
+        .await {
+            Ok(Some(cids)) => {
+                println!("got all the cids! {:?}", cids);
+                let cid = cids
+                    .iter()
+                    .next()
+                    .expect("Expected set with at least a Cid");
+        
+                let enc_bytes = store.get_block(cid).await?;
+                let bytes = key.decrypt(&enc_bytes)?;
+        
+                Ok(bytes)
+            }
+            Ok(_) => {
+                println!("successfully realized no cids");
+                panic!("");
+            },
+            Err(err) => {
+                println!("file shard not found: {}", err);
+                Err(FsError::DirectoryAlreadyExists.into())
+            },
+        }
     }
 
     pub async fn get_cids<'a>(
@@ -622,9 +635,20 @@ impl PrivateFile {
                     let label_hash = &Sha3_256::hash(&label.as_bytes());
                     let block_cids = forest
                         .get_encrypted(label_hash, store)
-                        .await?
-                        .ok_or(FsError::FileShardNotFound)?;
-                    cids.extend(block_cids)
+                        .await;
+
+                    match block_cids {
+                        Ok(Some(new_cids)) => {
+                            cids.extend(new_cids);
+                        },
+                        Ok(None) => {
+                            println!("successfully realized there are no cids");
+                        }
+                        Err(err) => {
+                            println!("wsdfdfdfdfd {}", err);
+                            panic!("dcjf;lkasdjf;sdlkfjsd");
+                        },
+                    }
                 }
                 Ok(cids)
             }
@@ -639,6 +663,12 @@ impl PrivateFile {
         block_count: usize,
         bare_name: &'a Namefilter,
     ) -> impl Iterator<Item = Namefilter> + 'a {
+        let output = format!("generate_shard_labels:\nkey: {:?}, index: {}, block_count: {}, bare_name: {:?}", key.0.as_bytes(), index, block_count, bare_name.as_bytes());
+        println!("{}", output);
+
+        #[cfg(target_arch="wasm32")]
+        gloo::console::log!(output);
+        
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
