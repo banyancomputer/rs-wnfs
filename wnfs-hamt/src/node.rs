@@ -203,27 +203,11 @@ where
         K: DeserializeOwned + AsRef<[u8]> + Debug,
         V: DeserializeOwned + Debug,
     {
-        #[cfg(feature = "log")]
-        debug!("get_by_hash: hash = {:02x?}", hash);
-
         let mut hashnibble = HashNibbles::new(hash);
-
-        println!("get_by_hash: hash = {:02x?}, digest = {:?}", hash, hashnibble);
-                #[cfg(target_arch="wasm32")]
-        gloo::console::log!(format!("get_by_hash: hash = {:02x?}, digest = {:?}", hash, hashnibble));
-
         Ok(self
             .get_value(&mut hashnibble, store)
-            .await
-            .map_err(|err| {
-                println!("woah!!!! {}", err);
-                err
-            })?
-            .map(|pair| {
-                println!("woah!!!! here's da pair {:?}", pair);
-                #[cfg(target_arch="wasm32")]
-                gloo::console::log!(format!("woah!!!! here's da pair {:?}", pair));
-                &pair.value}))
+            .await?
+            .map(|pair| &pair.value))
     }
 
     /// Removes the value at the key matching the provided hash.
@@ -394,7 +378,6 @@ where
     {
         let bit_index = hashnibbles.try_next()?;
 
-
         if !self.bitmask[bit_index] {
             return Ok(None);
         }
@@ -402,24 +385,11 @@ where
         let value_index = self.get_value_index(bit_index);
         match &self.pointers[value_index] {
             Pointer::Values(values) => Ok({
-                println!("trying find hashnibble {:?} in mysterious array", hashnibbles);
-                #[cfg(target_arch="wasm32")]
-                gloo::console::log!(format!("trying find hashnibble {:?} in mysterious array", hashnibbles));
-                for value in values {
-                    println!("key: {:?} value: {:?}", &H::hash(&value.key), value.value);
-                #[cfg(target_arch="wasm32")]
-                    gloo::console::log!(format!("key: {:?} value: {:?}", &H::hash(&value.key), value.value));
-                }
-                let found = values
+                values
                     .iter()
-                    .find(|p| &H::hash(&p.key) == hashnibbles.digest);
-                println!("found a guyyyy: {:?}", found);
-                #[cfg(target_arch="wasm32")]
-                gloo::console::log!(format!("found a guyyyy: {:?}", found));
-                found
+                    .find(|p| &H::hash(&p.key) == hashnibbles.digest)
             }),
             Pointer::Link(link) => {
-                println!("trying to resolve value for {:?}", link.get_cid());
                 let child = link.resolve_value(store).await?;
                 child.get_value(hashnibbles, store).await
             }

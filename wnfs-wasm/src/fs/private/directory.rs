@@ -125,7 +125,7 @@ impl PrivateDirectory {
                 ratchet_seed,
                 inumber,
                 &mut forest,
-                &mut store,
+                &store,
                 &mut rng,
             )
             .await

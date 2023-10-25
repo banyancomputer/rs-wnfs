@@ -2,9 +2,8 @@ use super::{ChangeType, Node};
 use crate::{error::HamtError, Hasher};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, rc::Rc};
+use std::{fmt::Debug, hash::Hash, rc::Rc};
 use wnfs_common::{BlockStore, Link};
-use std::fmt::Debug;
 
 //--------------------------------------------------------------------------------------------------
 // Functions

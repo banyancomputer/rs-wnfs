@@ -363,17 +363,6 @@ impl PrivateFile {
                 } => {
                     let bare_name = &self.header.bare_name;
                     let shard_labels : Vec<_> = Self::generate_shard_labels(key, index,  *block_count, bare_name).collect();
-                    println!("we are in stream_content");
-                    // println!("shard_labels: {:?}", &shard_labels);
-                    // println!("forest: {:?}", forest);
-                    println!("stream_content: bare_name: {:?}", bare_name.as_bytes());
-                     #[cfg(target_arch="wasm32")]
-                     {
-                         gloo::console::log!(format!("we are in stream_content"));
-                    //     gloo::console::log!(format!("shard_labels: {:?}", &shard_labels));
-                    //     gloo::console::log!(format!("forest: {:?}", forest));
-                         gloo::console::log!(format!("stream_content: bare_name: {:?}", bare_name.as_bytes()));
-                    };
                     for label in shard_labels.iter() {
                         let bytes = Self::decrypt_block(key, label, forest, store).await?;
                         yield bytes
@@ -601,50 +590,21 @@ impl PrivateFile {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        println!("WE ARE IN DECRYPT_BLOCK IN PRIVATE FILE");
-        // println!("decrypt_block: label is {:?}", label);
-        // println!("snapshot key is: {:?}", key);
-        // println!("forest is: {:?}", forest);
-        #[cfg(target_arch="wasm32")]
-        {
-            gloo::console::log!(format!("WE ARE IN DECRYPT_BLOCK IN PRIVATE FILE"));
-            // gloo::console::log!(format!("decrypt_block: label is {:?}", label));
-            // gloo::console::log!(format!("snapshot key is: {:?}", key));
-            // gloo::console::log!(format!("forest is: {:?}", forest));
-        };
-
-        
         let label_hash = &Sha3_256::hash(&label.as_bytes());
 
-        println!("label_hash: {:?}", label_hash);
-        #[cfg(target_arch="wasm32")]
-        {
-            gloo::console::log!(format!("label_hash: {:?}", label_hash));
-        };
-
-        match forest
-            .get_encrypted(label_hash, store)
-            .await {
+        match forest.get_encrypted(label_hash, store).await {
             Ok(Some(cids)) => {
-                println!("got all the cids! {:?}", cids);
                 let cid = cids
                     .iter()
                     .next()
                     .expect("Expected set with at least a Cid");
-        
+
                 let enc_bytes = store.get_block(cid).await?;
                 let bytes = key.decrypt(&enc_bytes)?;
-        
+
                 Ok(bytes)
             }
-            Ok(_) => {
-                println!("successfully realized no cids");
-                panic!("");
-            },
-            Err(err) => {
-                println!("file shard not found: {}", err);
-                Err(FsError::DirectoryAlreadyExists.into())
-            },
+            _ => Err(FsError::FileShardNotFound.into()),
         }
     }
 
@@ -659,24 +619,18 @@ impl PrivateFile {
             } => {
                 let mut cids = <BTreeSet<Cid>>::new();
                 let bare_name = &self.header.bare_name;
-        
+
                 for label in Self::generate_shard_labels(key, 0, *block_count, bare_name) {
                     let label_hash = &Sha3_256::hash(&label.as_bytes());
-                    let block_cids = forest
-                        .get_encrypted(label_hash, store)
-                        .await;
+                    let block_cids = forest.get_encrypted(label_hash, store).await;
 
                     match block_cids {
                         Ok(Some(new_cids)) => {
                             cids.extend(new_cids);
-                        },
-                        Ok(None) => {
-                            println!("successfully realized there are no cids");
                         }
-                        Err(err) => {
-                            println!("wsdfdfdfdfd {}", err);
-                            panic!("dcjf;lkasdjf;sdlkfjsd");
-                        },
+                        _ => {
+                            return Err(FsError::FileShardNotFound.into());
+                        }
                     }
                 }
                 Ok(cids)
@@ -692,25 +646,13 @@ impl PrivateFile {
         block_count: usize,
         bare_name: &'a Namefilter,
     ) -> impl Iterator<Item = Namefilter> + 'a {
-        let output = format!("generate_shard_labels:\nkey: {:?}, index: {}, block_count: {}, bare_name: {:?}", key.0.as_bytes(), index, block_count, bare_name.as_bytes());
-        println!("{}", output);
-
-        #[cfg(target_arch="wasm32")]
-        gloo::console::log!(output);
-        
         iter::from_fn(move || {
             if index >= block_count {
-                println!("returning none, index > block_count");
                 return None;
             }
-
-            println!("about to call create block label with index: {:?}", index);
             let label = Self::create_block_label(key, index, bare_name);
             index += 1;
 
-            println!("in the end of generate shard labels: label: {:?}", label);
-            #[cfg(target_arch="wasm32")]
-            gloo::console::log!(format!("in the end of generate shard labels: label: {:?}", label));
             Some(label)
         })
     }
@@ -721,31 +663,9 @@ impl PrivateFile {
         let key_hash = Sha3_256::hash(&[key_bytes, &(index as u64).to_le_bytes()[..]].concat());
 
         let mut label = bare_name.clone();
-        println!("create_block_label: key_bytes: {:?}", key_bytes);
-        println!("create_block_label: key_hash: {:?}", key_hash);
-        println!("create_block_label: index: {:?} index_bytes: {:?}", index, &index.to_le_bytes());
-        println!("create_block_label: label: {:?}", label.as_bytes());
-        #[cfg(target_arch="wasm32")]
-        {
-            gloo::console::log!(format!("create_block_label: key_bytes: {:?}", key_bytes));
-            gloo::console::log!(format!("create_block_label: key_hash: {:?}", key_hash));
-            gloo::console::log!(format!("create_block_label: index: {:?} index_bytes: {:?}", index, &index.to_le_bytes()));
-            gloo::console::log!(format!("create_block_label: label: {:?}", label.as_bytes()));
-        };
-
         label.add(&key_bytes);
-        println!("create_block_label: label after adding key_bytes: {:?}", label.as_bytes());
-        #[cfg(target_arch="wasm32")]
-        gloo::console::log!(format!("create_block_label: label after adding key_bytes: {:?}", label.as_bytes()));
         label.add(&key_hash);
-        println!("create_block_label: label after adding key_hash: {:?}", label.as_bytes());
-        #[cfg(target_arch="wasm32")]
-        gloo::console::log!(format!("create_block_label: label after adding key_hash: {:?}", label.as_bytes()));
         label.saturate();
-        println!("create_block_label: label after saturate: {:?}", label.as_bytes());
-        #[cfg(target_arch="wasm32")]
-        gloo::console::log!(format!("create_block_label: label after saturate: {:?}", label.as_bytes()));
-
         label
     }
 
@@ -1150,7 +1070,7 @@ mod proptests {
                 Utc::now(),
                 &mut Cursor::new(vec![5u8; length]),
                 forest,
-                &mut MemoryBlockStore::default(),
+                &MemoryBlockStore::default(),
                 rng,
             )
             .await
