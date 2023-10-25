@@ -204,7 +204,7 @@ where
         V: DeserializeOwned,
     {
         #[cfg(feature = "log")]
-        debug!("get: hash = {:02x?}", hash);
+        debug!("get_by_hash: hash = {:02x?}", hash);
 
         Ok(self
             .get_value(&mut HashNibbles::new(hash), store)
