@@ -618,13 +618,14 @@ impl PrivateFile {
             } => {
                 let mut cids = <BTreeSet<Cid>>::new();
                 let bare_name = &self.header.bare_name;
+
                 for label in Self::generate_shard_labels(key, 0, *block_count, bare_name) {
                     let label_hash = &Sha3_256::hash(&label.as_bytes());
                     let block_cids = forest
                         .get_encrypted(label_hash, store)
                         .await?
                         .ok_or(FsError::FileShardNotFound)?;
-                    cids.extend(block_cids)
+                    cids.extend(block_cids);
                 }
                 Ok(cids)
             }
@@ -643,9 +644,9 @@ impl PrivateFile {
             if index >= block_count {
                 return None;
             }
-
             let label = Self::create_block_label(key, index, bare_name);
             index += 1;
+
             Some(label)
         })
     }
@@ -653,13 +654,12 @@ impl PrivateFile {
     /// Creates the label for a block of a file.
     fn create_block_label(key: &SnapshotKey, index: usize, bare_name: &Namefilter) -> Namefilter {
         let key_bytes = key.0.as_bytes();
-        let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
+        let key_hash = Sha3_256::hash(&[key_bytes, &(index as u64).to_le_bytes()[..]].concat());
 
         let mut label = bare_name.clone();
         label.add(&key_bytes);
         label.add(&key_hash);
         label.saturate();
-
         label
     }
 
