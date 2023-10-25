@@ -203,9 +203,8 @@ where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
     {
-        let mut hashnibble = HashNibbles::new(hash);
         Ok(self
-            .get_value(&mut hashnibble, store)
+            .get_value(&mut HashNibbles::new(hash), store)
             .await?
             .map(|pair| &pair.value))
     }
