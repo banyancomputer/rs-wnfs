@@ -120,8 +120,8 @@ where
     /// ```
     pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]> + Debug,
-        V: DeserializeOwned + Debug,
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
     {
         let hash = &H::hash(key);
 
@@ -200,8 +200,8 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]> + Debug,
-        V: DeserializeOwned + Debug,
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
     {
         let mut hashnibble = HashNibbles::new(hash);
         Ok(self
@@ -373,8 +373,8 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
-        K: DeserializeOwned + AsRef<[u8]> + Debug,
-        V: DeserializeOwned + Debug,
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
     {
         let bit_index = hashnibbles.try_next()?;
 
