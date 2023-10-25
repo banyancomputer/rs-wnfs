@@ -590,10 +590,12 @@ impl PrivateFile {
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
+
         let cids = forest
             .get_encrypted(label_hash, store)
             .await?
             .ok_or(FsError::FileShardNotFound)?;
+
         let cid = cids
             .iter()
             .next()
@@ -601,6 +603,7 @@ impl PrivateFile {
 
         let enc_bytes = store.get_block(cid).await?;
         let bytes = key.decrypt(&enc_bytes)?;
+
         Ok(bytes)
     }
 

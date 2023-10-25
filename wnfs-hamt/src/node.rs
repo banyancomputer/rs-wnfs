@@ -203,6 +203,9 @@ where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
     {
+        #[cfg(feature = "log")]
+        debug!("get: hash = {:02x?}", hash);
+
         Ok(self
             .get_value(&mut HashNibbles::new(hash), store)
             .await?
@@ -377,6 +380,7 @@ where
     {
         let bit_index = hashnibbles.try_next()?;
 
+        // If the bit is not set yet, return None.
         if !self.bitmask[bit_index] {
             return Ok(None);
         }
