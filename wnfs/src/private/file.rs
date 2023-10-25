@@ -351,7 +351,7 @@ impl PrivateFile {
             match &self.content.content {
                 FileContent::Inline { data } => {
                     if index != 0 {
-                        Err(FsError::DirectoryAlreadyExists)?
+                        Err(FsError::FileShardNotFound)?
                     }
 
                     yield data.clone()
@@ -362,9 +362,8 @@ impl PrivateFile {
                     ..
                 } => {
                     let bare_name = &self.header.bare_name;
-                    let shard_labels : Vec<_> = Self::generate_shard_labels(key, index,  *block_count, bare_name).collect();
-                    for label in shard_labels.iter() {
-                        let bytes = Self::decrypt_block(key, label, forest, store).await?;
+                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
+                        let bytes = Self::decrypt_block(key, &label, forest, store).await?;
                         yield bytes
                     }
                 }
@@ -591,21 +590,18 @@ impl PrivateFile {
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
+        let cids = forest
+            .get_encrypted(label_hash, store)
+            .await?
+            .ok_or(FsError::FileShardNotFound)?;
+        let cid = cids
+            .iter()
+            .next()
+            .expect("Expected set with at least a Cid");
 
-        match forest.get_encrypted(label_hash, store).await {
-            Ok(Some(cids)) => {
-                let cid = cids
-                    .iter()
-                    .next()
-                    .expect("Expected set with at least a Cid");
-
-                let enc_bytes = store.get_block(cid).await?;
-                let bytes = key.decrypt(&enc_bytes)?;
-
-                Ok(bytes)
-            }
-            _ => Err(FsError::FileShardNotFound.into()),
-        }
+        let enc_bytes = store.get_block(cid).await?;
+        let bytes = key.decrypt(&enc_bytes)?;
+        Ok(bytes)
     }
 
     pub async fn get_cids<'a>(
@@ -622,16 +618,11 @@ impl PrivateFile {
 
                 for label in Self::generate_shard_labels(key, 0, *block_count, bare_name) {
                     let label_hash = &Sha3_256::hash(&label.as_bytes());
-                    let block_cids = forest.get_encrypted(label_hash, store).await;
-
-                    match block_cids {
-                        Ok(Some(new_cids)) => {
-                            cids.extend(new_cids);
-                        }
-                        _ => {
-                            return Err(FsError::FileShardNotFound.into());
-                        }
-                    }
+                    let block_cids = forest
+                        .get_encrypted(label_hash, store)
+                        .await?
+                        .ok_or(FsError::FileShardNotFound)?;
+                    cids.extend(block_cids);
                 }
                 Ok(cids)
             }
