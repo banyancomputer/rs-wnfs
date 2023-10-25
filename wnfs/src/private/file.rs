@@ -1064,7 +1064,7 @@ mod proptests {
                 Utc::now(),
                 &mut Cursor::new(vec![5u8; length]),
                 forest,
-                &MemoryBlockStore::default(),
+                &mut MemoryBlockStore::default(),
                 rng,
             )
             .await
