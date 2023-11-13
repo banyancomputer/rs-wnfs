@@ -832,7 +832,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store(forest, store, rng).await.unwrap();
+    ///     dir_clone.store_temporal(forest, store, rng).await.unwrap();
     ///
     ///     let latest_dir = init_dir.search_latest(forest, store).await.unwrap();
     ///
@@ -1423,7 +1423,7 @@ impl PrivateDirectory {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
+    ///     let private_ref = dir.store_temporal(forest, store, rng).await.unwrap();
     ///
     ///     let node = PrivateNode::Dir(Rc::clone(&dir));
     ///

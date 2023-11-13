@@ -231,7 +231,7 @@ where
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     root_dir.store(main_forest, store, rng).await.unwrap();
+    ///     root_dir.store_temporal(main_forest, store, rng).await.unwrap();
     ///
     ///     let other_forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
@@ -240,7 +240,7 @@ where
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     root_dir.store(other_forest, store, rng).await.unwrap();
+    ///     root_dir.store_temporal(other_forest, store, rng).await.unwrap();
     ///
     ///     let merge_forest = main_forest.merge(other_forest, store).await.unwrap();
     ///

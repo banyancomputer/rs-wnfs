@@ -755,7 +755,7 @@ impl PrivateFile {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = file.store(forest, store, rng).await.unwrap();
+    ///     let private_ref = file.store_temporal(forest, store, rng).await.unwrap();
     ///
     ///     let node = PrivateNode::File(Rc::clone(&file));
     ///
