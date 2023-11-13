@@ -765,13 +765,38 @@ impl PrivateFile {
     ///     );
     /// }
     /// ```
-    pub async fn store(
+    pub async fn store_temporal(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
-        let header_cid = self.header.store(store).await?;
+        let header_cid = self.header.store_temporal(store).await?;
+        let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
+        let label = self.header.get_saturated_name();
+
+        let content_cid = self
+            .content
+            .store(header_cid, &snapshot_key, store, rng)
+            .await?;
+
+        forest
+            .put_encrypted(label, [header_cid, content_cid], store)
+            .await?;
+
+        Ok(self
+            .header
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
+    }
+
+    pub async fn store_snapshot(
+        &self,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<PrivateRef> {
+        let header_cid = self.header.store_snapshot(store, rng).await?;
         let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
         let label = self.header.get_saturated_name();
 
@@ -808,7 +833,31 @@ impl PrivateFile {
             content: serializable.content,
         };
 
-        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        let header =
+            PrivateNodeHeader::load_temporal(&serializable.header_cid, temporal_key, store).await?;
+        Ok(Self { header, content })
+    }
+
+    /// Creates a new [`PrivateFile`] from a [`PrivateFileContentSerializable`] but only a Snapshot.
+    pub(crate) async fn from_serializable_snapshot(
+        serializable: PrivateFileContentSerializable,
+        snapshot_key: &SnapshotKey,
+        cid: Cid,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let content = PrivateFileContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            previous: serializable.previous.into_iter().collect(),
+            metadata: serializable.metadata,
+            content: serializable.content,
+        };
+
+        let header =
+            PrivateNodeHeader::load_snapshot(&serializable.header_cid, snapshot_key, store).await?;
         Ok(Self { header, content })
     }
 

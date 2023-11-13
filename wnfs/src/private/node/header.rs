@@ -1,4 +1,4 @@
-use super::TemporalKey;
+use super::{SnapshotKey, TemporalKey};
 use crate::private::RevisionRef;
 use anyhow::Result;
 use libipld::{Cid, IpldCodec};
@@ -9,7 +9,7 @@ use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
-use wnfs_namefilter::Namefilter;
+use wnfs_namefilter::{BloomFilter, Namefilter};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -214,16 +214,28 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+    pub async fn store_temporal(&self, store: &impl BlockStore) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = serde_ipld_dagcbor::to_vec(self)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
 
+    pub async fn store_snapshot(
+        &self,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
+        let snapshot_key = self.derive_temporal_key().derive_snapshot_key();
+        let tuple = (self.inumber, self.bare_name.clone());
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(&tuple)?;
+        // let ciphertext = snapshot_key.encrypt(&cbor_bytes, rng)?;
+        store.put_block(cbor_bytes, IpldCodec::Raw).await
+    }
+
     /// Loads a private node header from a given CID linking to the ciphertext block
     /// to be decrypted with given key.
-    pub(crate) async fn load(
+    pub(crate) async fn load_temporal(
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
@@ -231,6 +243,22 @@ impl PrivateNodeHeader {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         Ok(serde_ipld_dagcbor::from_slice(&cbor_bytes)?)
+    }
+
+    pub(crate) async fn load_snapshot(
+        cid: &Cid,
+        snapshot_key: &SnapshotKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNodeHeader> {
+        let cbor_bytes = store.get_block(cid).await?;
+        // let cbor_bytes = snapshot_key.decrypt(&ciphertext)?;
+        let tuple: ([u8; 32], BloomFilter<256, 30>) = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
+        let header = PrivateNodeHeader {
+            inumber: tuple.0,
+            ratchet: Ratchet::default(),
+            bare_name: tuple.1,
+        };
+        Ok(header)
     }
 }
 

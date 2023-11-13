@@ -550,7 +550,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let past_dir = root_dir.clone();
 
@@ -567,14 +567,14 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         root_dir
             .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -635,7 +635,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let past_dir = root_dir.clone();
 
@@ -646,7 +646,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         root_dir
             .write(
@@ -661,7 +661,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -735,7 +735,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let past_dir = root_dir.clone();
 
@@ -746,7 +746,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let docs_dir = root_dir
             .get_node(&["Docs".into()], true, forest, store)
@@ -768,7 +768,7 @@ mod tests {
             .await
             .unwrap();
 
-        docs_dir.store(forest, store, rng).await.unwrap();
+        docs_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -857,7 +857,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let past_dir = root_dir.clone();
 
@@ -881,7 +881,7 @@ mod tests {
             .await
             .unwrap();
 
-        docs_dir.store(forest, store, rng).await.unwrap();
+        docs_dir.store_temporal(forest, store, rng).await.unwrap();
 
         root_dir
             .write(
@@ -896,7 +896,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -999,13 +999,13 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         let past_dir = root_dir.clone();
 
         let mut root_dir = Rc::new(root_dir.prepare_next_revision().unwrap().clone());
 
-        root_dir.store(forest, store, rng).await.unwrap();
+        root_dir.store_temporal(forest, store, rng).await.unwrap();
 
         root_dir
             .write(
