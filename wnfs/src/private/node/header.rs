@@ -226,11 +226,11 @@ impl PrivateNodeHeader {
         store: &impl BlockStore,
         _rng: &mut impl RngCore,
     ) -> Result<Cid> {
-        let _snapshot_key = self.derive_temporal_key().derive_snapshot_key();
+        let snapshot_key = self.derive_temporal_key().derive_snapshot_key();
         let tuple = (self.inumber, self.bare_name.clone());
         let cbor_bytes = serde_ipld_dagcbor::to_vec(&tuple)?;
-        // let ciphertext = snapshot_key.encrypt(&cbor_bytes, rng)?;
-        store.put_block(cbor_bytes, IpldCodec::Raw).await
+        let ciphertext = TemporalKey(snapshot_key.0).key_wrap_encrypt(&cbor_bytes)?;
+        store.put_block(ciphertext, IpldCodec::Raw).await
     }
 
     /// Loads a private node header from a given CID linking to the ciphertext block
@@ -247,11 +247,11 @@ impl PrivateNodeHeader {
 
     pub(crate) async fn load_snapshot(
         cid: &Cid,
-        _snapshot_key: &SnapshotKey,
+        snapshot_key: &SnapshotKey,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeHeader> {
-        let cbor_bytes = store.get_block(cid).await?;
-        // let cbor_bytes = snapshot_key.decrypt(&ciphertext)?;
+        let ciphertext = store.get_block(cid).await?;
+        let cbor_bytes = TemporalKey(snapshot_key.0.to_owned()).key_wrap_decrypt(&ciphertext)?;
         let tuple: ([u8; 32], BloomFilter<256, 30>) = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
         let header = PrivateNodeHeader {
             inumber: tuple.0,
