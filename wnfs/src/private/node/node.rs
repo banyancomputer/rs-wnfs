@@ -513,8 +513,11 @@ impl PrivateNode {
                     PrivateFile::from_serializable_snapshot(file, snapshot_key, cid, store).await?;
                 PrivateNode::File(Rc::new(file))
             }
-            PrivateNodeContentSerializable::Dir(_) => {
-                bail!("cannot deserialize dir from snapshot yet");
+            PrivateNodeContentSerializable::Dir(dir) => {
+                let dir =
+                    PrivateDirectory::from_serializable_snapshot(dir, snapshot_key, cid, store)
+                        .await?;
+                PrivateNode::Dir(Rc::new(dir))
             }
         };
 
