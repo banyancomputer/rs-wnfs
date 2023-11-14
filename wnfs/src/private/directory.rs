@@ -1,7 +1,7 @@
 use super::{
     encrypted::Encrypted, link::PrivateLink, PrivateDirectoryContentSerializable, PrivateFile,
     PrivateForest, PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef,
-    SnapshotKey, TemporalKey,
+    TemporalKey,
 };
 use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};

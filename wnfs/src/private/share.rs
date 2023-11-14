@@ -303,12 +303,12 @@ pub mod sharer {
 }
 
 pub mod recipient {
-    use super::{sharer, SharePayload, SnapshotSharePointer, TemporalSharePointer};
+    use super::{sharer, SharePayload, TemporalSharePointer};
     use crate::{
         error::ShareError,
         private::{PrivateForest, PrivateKey, PrivateNode, PrivateRef},
     };
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use sha3::Sha3_256;
     use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;

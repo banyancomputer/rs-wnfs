@@ -224,9 +224,9 @@ impl PrivateNodeHeader {
     pub async fn store_snapshot(
         &self,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        _rng: &mut impl RngCore,
     ) -> Result<Cid> {
-        let snapshot_key = self.derive_temporal_key().derive_snapshot_key();
+        let _snapshot_key = self.derive_temporal_key().derive_snapshot_key();
         let tuple = (self.inumber, self.bare_name.clone());
         let cbor_bytes = serde_ipld_dagcbor::to_vec(&tuple)?;
         // let ciphertext = snapshot_key.encrypt(&cbor_bytes, rng)?;
@@ -247,7 +247,7 @@ impl PrivateNodeHeader {
 
     pub(crate) async fn load_snapshot(
         cid: &Cid,
-        snapshot_key: &SnapshotKey,
+        _snapshot_key: &SnapshotKey,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeHeader> {
         let cbor_bytes = store.get_block(cid).await?;
