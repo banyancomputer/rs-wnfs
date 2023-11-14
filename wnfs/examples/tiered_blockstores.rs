@@ -54,10 +54,7 @@ async fn main() {
         .unwrap();
 
     // When storing the hierarchy data blocks, we use the `hot_store`:
-    let private_ref = directory
-        .store_temporal(forest, &mut hot_store, rng)
-        .await
-        .unwrap();
+    let private_ref = directory.store(forest, &mut hot_store, rng).await.unwrap();
 
     // Same thing for the forest. Doing this will give us a single root CID
     // for all of the data, but parts separated into `hot_store` and `cold_store`:

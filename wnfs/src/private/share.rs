@@ -556,7 +556,7 @@ mod tests {
             .as_file()
             .unwrap();
         sharer_file
-            .store_snapshot(sharer_forest, sharer_store, rng)
+            .store(sharer_forest, sharer_store, rng)
             .await
             .unwrap();
 

@@ -139,7 +139,7 @@ impl PrivateDirectory {
         rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
         let dir = Rc::new(Self::new(parent_bare_name, time, rng));
-        dir.store_temporal(forest, store, rng).await?;
+        dir.store(forest, store, rng).await?;
         Ok(dir)
     }
 
@@ -160,7 +160,7 @@ impl PrivateDirectory {
             ratchet_seed,
             inumber,
         ));
-        dir.store_temporal(forest, store, rng).await?;
+        dir.store(forest, store, rng).await?;
         Ok(dir)
     }
 
@@ -832,7 +832,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store_temporal(forest, store, rng).await.unwrap();
+    ///     dir_clone.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_dir = init_dir.search_latest(forest, store).await.unwrap();
     ///
@@ -1423,7 +1423,7 @@ impl PrivateDirectory {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = dir.store_temporal(forest, store, rng).await.unwrap();
+    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
     ///
     ///     let node = PrivateNode::Dir(Rc::clone(&dir));
     ///
@@ -1433,38 +1433,13 @@ impl PrivateDirectory {
     ///     );
     /// }
     /// ```
-    pub async fn store_temporal(
+    pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
-        let header_cid = self.header.store_temporal(store).await?;
-        let temporal_key = self.header.derive_temporal_key();
-        let label = self.header.get_saturated_name();
-
-        let content_cid = self
-            .content
-            .store(header_cid, &temporal_key, forest, store, rng)
-            .await?;
-
-        forest
-            .put_encrypted(label, [header_cid, content_cid], store)
-            .await?;
-
-        Ok(self
-            .header
-            .derive_revision_ref()
-            .as_private_ref(content_cid))
-    }
-
-    pub async fn store_snapshot(
-        &self,
-        forest: &mut Rc<PrivateForest>,
-        store: &impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<PrivateRef> {
-        let header_cid = self.header.store_snapshot(store, rng).await?;
+        let header_cid = self.header.store(store).await?;
         let temporal_key = self.header.derive_temporal_key();
         let label = self.header.get_saturated_name();
 
@@ -1989,7 +1964,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store_temporal(forest, store, rng).await.unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let old_root = &Rc::clone(root_dir);
 
@@ -1998,7 +1973,7 @@ mod tests {
             .await
             .unwrap();
 
-        root_dir.store_temporal(forest, store, rng).await.unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let new_read = root_dir.read(&path, false, forest, store).await.unwrap();
 
@@ -2397,7 +2372,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        old_dir.store_temporal(forest, store, rng).await.unwrap();
+        old_dir.store(forest, store, rng).await.unwrap();
 
         let new_dir = &mut Rc::clone(old_dir);
         new_dir

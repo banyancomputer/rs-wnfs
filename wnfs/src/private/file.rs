@@ -755,7 +755,7 @@ impl PrivateFile {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = file.store_temporal(forest, store, rng).await.unwrap();
+    ///     let private_ref = file.store(forest, store, rng).await.unwrap();
     ///
     ///     let node = PrivateNode::File(Rc::clone(&file));
     ///
@@ -765,38 +765,13 @@ impl PrivateFile {
     ///     );
     /// }
     /// ```
-    pub async fn store_temporal(
+    pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
-        let header_cid = self.header.store_temporal(store).await?;
-        let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
-        let label = self.header.get_saturated_name();
-
-        let content_cid = self
-            .content
-            .store(header_cid, &snapshot_key, store, rng)
-            .await?;
-
-        forest
-            .put_encrypted(label, [header_cid, content_cid], store)
-            .await?;
-
-        Ok(self
-            .header
-            .derive_revision_ref()
-            .as_private_ref(content_cid))
-    }
-
-    pub async fn store_snapshot(
-        &self,
-        forest: &mut Rc<PrivateForest>,
-        store: &impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<PrivateRef> {
-        let header_cid = self.header.store_snapshot(store, rng).await?;
+        let header_cid = self.header.store(store).await?;
         let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
         let label = self.header.get_saturated_name();
 

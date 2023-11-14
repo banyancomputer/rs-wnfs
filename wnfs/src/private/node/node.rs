@@ -351,7 +351,7 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store_temporal(forest, store, rng).await.unwrap();
+    ///     dir_clone.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
@@ -553,8 +553,8 @@ impl PrivateNode {
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         match self {
-            Self::File(file) => file.store_temporal(forest, store, rng).await,
-            Self::Dir(dir) => dir.store_temporal(forest, store, rng).await,
+            Self::File(file) => file.store(forest, store, rng).await,
+            Self::Dir(dir) => dir.store(forest, store, rng).await,
         }
     }
 

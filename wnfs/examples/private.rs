@@ -62,7 +62,7 @@ async fn create_forest_and_add_directory(
     .unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = dir.store_temporal(forest, store, rng).await.unwrap();
+    let private_ref = dir.store(forest, store, rng).await.unwrap();
 
     // Persist encoded private forest to the block store.
     let forest_cid = store.put_async_serializable(forest).await.unwrap();
