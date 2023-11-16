@@ -1488,6 +1488,7 @@ impl PrivateDirectory {
         Ok(Self { header, content })
     }
 
+    #[allow(dead_code)]
     /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
     pub(crate) async fn from_serializable_snapshot(
         serializable: PrivateDirectoryContentSerializable,

@@ -7,7 +7,7 @@ use crate::{
     },
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
@@ -513,11 +513,8 @@ impl PrivateNode {
                     PrivateFile::from_serializable_snapshot(file, snapshot_key, cid, store).await?;
                 PrivateNode::File(Rc::new(file))
             }
-            PrivateNodeContentSerializable::Dir(dir) => {
-                let dir =
-                    PrivateDirectory::from_serializable_snapshot(dir, snapshot_key, cid, store)
-                        .await?;
-                PrivateNode::Dir(Rc::new(dir))
+            PrivateNodeContentSerializable::Dir(_) => {
+                return Err(anyhow!("Not yet able to deserialize Dir from snapshot"));
             }
         };
 

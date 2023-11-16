@@ -548,17 +548,17 @@ mod tests {
             .await
             .unwrap();
 
-        // let sharer_file = sharer_dir
-        //     .get_node(&["text.txt".into()], true, sharer_forest, sharer_store)
-        //     .await
-        //     .unwrap()
-        //     .unwrap()
-        //     .as_file()
-        //     .unwrap();
-        // sharer_file
-        //     .store(sharer_forest, sharer_store, rng)
-        //     .await
-        //     .unwrap();
+        let sharer_file = sharer_dir
+            .get_node(&["text.txt".into()], true, sharer_forest, sharer_store)
+            .await
+            .unwrap()
+            .unwrap()
+            .as_file()
+            .unwrap();
+        sharer_file
+            .store(sharer_forest, sharer_store, rng)
+            .await
+            .unwrap();
 
         // Establish recipient exchange root.
         let (recipient_key, recipient_exchange_root) =
@@ -568,7 +568,7 @@ mod tests {
 
         // Construct share payload from sharer's directory.
         let sharer_payload = SharePayload::from_node(
-            &sharer_dir.as_node(),
+            &sharer_file.as_node(),
             false,
             sharer_forest,
             sharer_store,
@@ -608,16 +608,7 @@ mod tests {
                 .await
                 .unwrap();
 
-        let dir = node.as_dir().unwrap();
-
-        // Assert payload is the same as the original.
-        let file = dir
-            .get_node(&["text.txt".into()], true, sharer_forest, sharer_store)
-            .await
-            .unwrap()
-            .unwrap()
-            .as_file()
-            .unwrap();
+        let file = node.as_file().unwrap();
 
         let content = file.get_content(sharer_forest, sharer_store).await.unwrap();
         let content_string = String::from_utf8(content).unwrap();
