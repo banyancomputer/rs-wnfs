@@ -1,7 +1,7 @@
 use super::{
-    encrypted::Encrypted, link::PrivateLink, PrivateDirectoryContentSerializable, PrivateFile,
-    PrivateForest, PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef,
-    TemporalKey,
+    encrypted::Encrypted, link::PrivateLink, AesKey, PrivateDirectoryContentSerializable,
+    PrivateFile, PrivateForest, PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader,
+    PrivateRef, SnapshotKey, TemporalKey, KEY_BYTE_SIZE,
 };
 use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};
@@ -1459,7 +1459,7 @@ impl PrivateDirectory {
     }
 
     /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
-    pub(crate) async fn from_serializable(
+    pub(crate) async fn from_serializable_temporal(
         serializable: PrivateDirectoryContentSerializable,
         temporal_key: &TemporalKey,
         cid: Cid,
@@ -1483,9 +1483,47 @@ impl PrivateDirectory {
             entries: entries_decrypted,
         };
 
-        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        let header =
+            PrivateNodeHeader::load_temporal(&serializable.header_cid, temporal_key, store).await?;
         Ok(Self { header, content })
     }
+
+    #[allow(dead_code)]
+    /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
+    pub(crate) async fn from_serializable_snapshot(
+        serializable: PrivateDirectoryContentSerializable,
+        snapshot_key: &SnapshotKey,
+        cid: Cid,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let mut entries_decrypted = BTreeMap::new();
+        // let temporal_key = TemporalKey(snapshot_key.0.to_owned());
+        for (name, private_ref_serializable) in serializable.entries {
+            let private_ref = PrivateRef {
+                saturated_name_hash: private_ref_serializable.saturated_name_hash,
+                // What are we supposed to do here in the absence of a parent key? This node is not decryptable
+                temporal_key: TemporalKey(AesKey::new([0u8; KEY_BYTE_SIZE])),
+                content_cid: private_ref_serializable.content_cid,
+            };
+            entries_decrypted.insert(name, PrivateLink::from_ref(private_ref));
+        }
+
+        let content = PrivateDirectoryContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            metadata: serializable.metadata,
+            previous: serializable.previous.into_iter().collect(),
+            entries: entries_decrypted,
+        };
+
+        let header =
+            PrivateNodeHeader::load_snapshot(&serializable.header_cid, snapshot_key, store).await?;
+        Ok(Self { header, content })
+    }
+
     /// Wraps the directory in a [`PrivateNode`].
     pub fn as_node(self: &Rc<Self>) -> PrivateNode {
         PrivateNode::Dir(Rc::clone(self))

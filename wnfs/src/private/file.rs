@@ -808,7 +808,31 @@ impl PrivateFile {
             content: serializable.content,
         };
 
-        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        let header =
+            PrivateNodeHeader::load_temporal(&serializable.header_cid, temporal_key, store).await?;
+        Ok(Self { header, content })
+    }
+
+    /// Creates a new [`PrivateFile`] from a [`PrivateFileContentSerializable`] but only a Snapshot.
+    pub(crate) async fn from_serializable_snapshot(
+        serializable: PrivateFileContentSerializable,
+        snapshot_key: &SnapshotKey,
+        cid: Cid,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let content = PrivateFileContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            previous: serializable.previous.into_iter().collect(),
+            metadata: serializable.metadata,
+            content: serializable.content,
+        };
+
+        let header =
+            PrivateNodeHeader::load_snapshot(&serializable.header_cid, snapshot_key, store).await?;
         Ok(Self { header, content })
     }
 

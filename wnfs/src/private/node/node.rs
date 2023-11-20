@@ -1,13 +1,13 @@
-use super::{PrivateNodeHeader, TemporalKey};
+use super::{PrivateNodeHeader, SnapshotKey, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateFile, PrivateForest,
-        PrivateNodeContentSerializable, PrivateRef,
+        encrypted::Encrypted, link::PrivateLink, share::SnapshotSharePointer, PrivateDirectory,
+        PrivateFile, PrivateForest, PrivateNodeContentSerializable, PrivateRef,
     },
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
@@ -481,7 +481,44 @@ impl PrivateNode {
             _ => return Err(FsError::NotFound.into()),
         };
 
+        // let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
         Self::from_cid(cid, &private_ref.temporal_key, store).await
+    }
+
+    /// A version of the load function designed to work when only a SnapshotKey is available
+    pub async fn load_from_snapshot(
+        snapshot: SnapshotSharePointer,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let cid = match forest.get_encrypted(&snapshot.label, store).await? {
+            Some(cids) if cids.contains(&snapshot.content_cid) => snapshot.content_cid,
+            _ => return Err(FsError::NotFound.into()),
+        };
+
+        Self::from_cid_snapshot(cid, &snapshot.snapshot_key, store).await
+    }
+
+    pub(crate) async fn from_cid_snapshot(
+        cid: Cid,
+        snapshot_key: &SnapshotKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let encrypted_bytes = store.get_block(&cid).await?;
+        let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
+        let node: PrivateNodeContentSerializable = serde_ipld_dagcbor::from_slice(&bytes)?;
+        let node = match node {
+            PrivateNodeContentSerializable::File(file) => {
+                let file =
+                    PrivateFile::from_serializable_snapshot(file, snapshot_key, cid, store).await?;
+                PrivateNode::File(Rc::new(file))
+            }
+            PrivateNodeContentSerializable::Dir(_) => {
+                return Err(anyhow!("Not yet able to deserialize Dir from snapshot"));
+            }
+        };
+
+        Ok(node)
     }
 
     pub(crate) async fn from_cid(
@@ -500,7 +537,8 @@ impl PrivateNode {
             }
             PrivateNodeContentSerializable::Dir(dir) => {
                 let dir =
-                    PrivateDirectory::from_serializable(dir, temporal_key, cid, store).await?;
+                    PrivateDirectory::from_serializable_temporal(dir, temporal_key, cid, store)
+                        .await?;
                 PrivateNode::Dir(Rc::new(dir))
             }
         };

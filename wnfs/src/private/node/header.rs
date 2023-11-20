@@ -1,12 +1,12 @@
-use super::TemporalKey;
+use super::{SnapshotKey, TemporalKey};
 use crate::private::RevisionRef;
 use anyhow::Result;
-use libipld::{Cid, IpldCodec};
+use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
-use std::fmt::Debug;
+use std::{collections::BTreeMap, fmt::Debug};
 use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
@@ -216,21 +216,103 @@ impl PrivateNodeHeader {
     /// BlockStore and returns its CID.
     pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = serde_ipld_dagcbor::to_vec(self)?;
-        let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
-        store.put_block(ciphertext, IpldCodec::Raw).await
+        let snapshot_key = TemporalKey(temporal_key.derive_snapshot_key().0);
+
+        let inumber_bytes =
+            snapshot_key.key_wrap_encrypt(&serde_ipld_dagcbor::to_vec(&self.inumber)?)?;
+        let ratchet_bytes =
+            temporal_key.key_wrap_encrypt(&serde_ipld_dagcbor::to_vec(&self.ratchet)?)?;
+        let bare_name_bytes =
+            snapshot_key.key_wrap_encrypt(&serde_ipld_dagcbor::to_vec(&self.bare_name)?)?;
+
+        let inumber_cid = store.put_block(inumber_bytes, IpldCodec::Raw).await?;
+        let ratchet_cid = store.put_block(ratchet_bytes, IpldCodec::Raw).await?;
+        let bare_name_cid = store.put_block(bare_name_bytes, IpldCodec::Raw).await?;
+
+        let mut map = <BTreeMap<String, Ipld>>::new();
+        map.insert("inumber".to_string(), Ipld::Link(inumber_cid));
+        map.insert("ratchet".to_string(), Ipld::Link(ratchet_cid));
+        map.insert("bare_name".to_string(), Ipld::Link(bare_name_cid));
+
+        let ipld_bytes = serde_ipld_dagcbor::to_vec(&Ipld::Map(map))?;
+        store.put_block(ipld_bytes, IpldCodec::Raw).await
     }
+
+    // async fn load_bytes(cid: &Cid, store: &impl BlockStore) -> Result<(Vec<u8>)> {
+
+    // }
 
     /// Loads a private node header from a given CID linking to the ciphertext block
     /// to be decrypted with given key.
-    pub(crate) async fn load(
+    pub(crate) async fn load_temporal(
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeHeader> {
-        let ciphertext = store.get_block(cid).await?;
-        let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        Ok(serde_ipld_dagcbor::from_slice(&cbor_bytes)?)
+        let snapshot_key = temporal_key.derive_snapshot_key();
+
+        let ipld_bytes = store.get_block(cid).await?;
+        let Ipld::Map(map) = serde_ipld_dagcbor::from_slice(&ipld_bytes)? else {
+            return Err(anyhow::anyhow!("Unable to deserialize ipld map"));
+        };
+
+        let Some(Ipld::Link(inumber_cid)) = map.get("inumber") else {
+            return Err(anyhow::anyhow!("Missing inumber_cid"));
+        };
+        let Some(Ipld::Link(ratchet_cid)) = map.get("ratchet") else {
+            return Err(anyhow::anyhow!("Missing ratchet_cid"));
+        };
+        let Some(Ipld::Link(bare_name_cid)) = map.get("bare_name") else {
+            return Err(anyhow::anyhow!("Missing bare_name_cid"));
+        };
+
+        let inumber_bytes = TemporalKey(snapshot_key.0.to_owned())
+            .key_wrap_decrypt(&store.get_block(inumber_cid).await?)?;
+        let ratchet_bytes = temporal_key.key_wrap_decrypt(&store.get_block(ratchet_cid).await?)?;
+        let bare_name_bytes = TemporalKey(snapshot_key.0.to_owned())
+            .key_wrap_decrypt(&store.get_block(bare_name_cid).await?)?;
+
+        let inumber: [u8; HASH_BYTE_SIZE] = serde_ipld_dagcbor::from_slice(&inumber_bytes)?;
+        let ratchet: Ratchet = serde_ipld_dagcbor::from_slice(&ratchet_bytes)?;
+        let bare_name: Namefilter = serde_ipld_dagcbor::from_slice(&bare_name_bytes)?;
+
+        Ok(Self {
+            inumber,
+            ratchet,
+            bare_name,
+        })
+    }
+
+    pub(crate) async fn load_snapshot(
+        cid: &Cid,
+        snapshot_key: &SnapshotKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNodeHeader> {
+        let ipld_bytes = store.get_block(cid).await?;
+        let Ipld::Map(map) = serde_ipld_dagcbor::from_slice(&ipld_bytes)? else {
+            return Err(anyhow::anyhow!("Unable to deserialize ipld map"));
+        };
+
+        let Some(Ipld::Link(inumber_cid)) = map.get("inumber") else {
+            return Err(anyhow::anyhow!("Missing inumber_cid"));
+        };
+        let Some(Ipld::Link(bare_name_cid)) = map.get("bare_name") else {
+            return Err(anyhow::anyhow!("Missing bare_name_cid"));
+        };
+
+        let inumber_bytes = TemporalKey(snapshot_key.0.to_owned())
+            .key_wrap_decrypt(&store.get_block(inumber_cid).await?)?;
+        let bare_name_bytes = TemporalKey(snapshot_key.0.to_owned())
+            .key_wrap_decrypt(&store.get_block(bare_name_cid).await?)?;
+
+        let inumber: [u8; HASH_BYTE_SIZE] = serde_ipld_dagcbor::from_slice(&inumber_bytes)?;
+        let bare_name: Namefilter = serde_ipld_dagcbor::from_slice(&bare_name_bytes)?;
+
+        Ok(Self {
+            inumber,
+            ratchet: Ratchet::default(),
+            bare_name,
+        })
     }
 }
 

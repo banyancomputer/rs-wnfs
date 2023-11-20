@@ -38,7 +38,7 @@ pub struct Share<'a, K: ExchangeKey, S: BlockStore> {
 pub struct Sharer<'a, S: BlockStore> {
     pub root_did: String,
     pub forest: &'a mut Rc<PrivateForest>,
-    pub store: &'a mut S,
+    pub store: &'a S,
 }
 
 #[derive(Debug)]
@@ -308,7 +308,7 @@ pub mod recipient {
         error::ShareError,
         private::{PrivateForest, PrivateKey, PrivateNode, PrivateRef},
     };
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use sha3::Sha3_256;
     use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;
@@ -369,19 +369,21 @@ pub mod recipient {
         let payload: SharePayload =
             serde_ipld_dagcbor::from_slice(&recipient_key.decrypt(&encrypted_payload).await?)?;
 
-        let SharePayload::Temporal(TemporalSharePointer {
-            label,
-            content_cid,
-            temporal_key,
-        }) = payload
-        else {
-            // TODO(appcypher): We currently need both TemporalKey to decrypt a node.
-            bail!(ShareError::UnsupportedSnapshotShareReceipt);
-        };
-
-        // Use decrypted payload to get cid to encrypted node in sharer's forest.
-        let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
-        PrivateNode::load(&private_ref, sharer_forest, store).await
+        match payload {
+            SharePayload::Temporal(TemporalSharePointer {
+                label,
+                content_cid,
+                temporal_key,
+            }) => {
+                // Use decrypted payload to get cid to encrypted node in sharer's forest.
+                let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
+                PrivateNode::load(&private_ref, sharer_forest, store).await
+            }
+            SharePayload::Snapshot(snapshot) => {
+                // Load from Snapshot
+                PrivateNode::load_from_snapshot(snapshot, sharer_forest, store).await
+            }
+        }
     }
 }
 
@@ -467,9 +469,9 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn can_share_and_recieve_share() {
+    async fn can_share_and_recieve_temporal_share() {
         let recipient_store = &mut MemoryBlockStore::default();
-        let sharer_store = &mut MemoryBlockStore::default();
+        let sharer_store = &MemoryBlockStore::default();
         let sharer_forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
@@ -530,6 +532,87 @@ mod tests {
 
         // Assert payload is the same as the original.
         assert_eq!(node.as_dir().unwrap(), sharer_dir);
+    }
+
+    #[async_std::test]
+    async fn can_share_and_recieve_snapshot_share() {
+        let recipient_store = &mut MemoryBlockStore::default();
+        let sharer_store = &MemoryBlockStore::default();
+        let sharer_forest = &mut Rc::new(PrivateForest::new());
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+        let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+        // Create directory to share.
+
+        let sharer_dir = helper::create_sharer_dir(sharer_forest, sharer_store, rng)
+            .await
+            .unwrap();
+
+        let sharer_file = sharer_dir
+            .get_node(&["text.txt".into()], true, sharer_forest, sharer_store)
+            .await
+            .unwrap()
+            .unwrap()
+            .as_file()
+            .unwrap();
+        sharer_file
+            .store(sharer_forest, sharer_store, rng)
+            .await
+            .unwrap();
+
+        // Establish recipient exchange root.
+        let (recipient_key, recipient_exchange_root) =
+            helper::create_recipient_exchange_root(recipient_store)
+                .await
+                .unwrap();
+
+        // Construct share payload from sharer's directory.
+        let sharer_payload = SharePayload::from_node(
+            &sharer_file.as_node(),
+            false,
+            sharer_forest,
+            sharer_store,
+            rng,
+        )
+        .await
+        .unwrap();
+
+        // Share payload with recipient.
+        Share::<RsaPublicKey, _>::new(&sharer_payload, 0)
+            .by(Sharer {
+                root_did: sharer_root_did.into(),
+                store: sharer_store,
+                forest: sharer_forest,
+            })
+            .to(Recipient {
+                exchange_root: PublicLink::new(PublicNode::Dir(recipient_exchange_root)),
+                store: recipient_store,
+            })
+            .finish()
+            .await
+            .unwrap();
+
+        // Create share label.
+        let share_label = sharer::create_share_label(
+            0,
+            sharer_root_did,
+            &recipient_key
+                .get_public_key()
+                .get_public_key_modulus()
+                .unwrap(),
+        );
+
+        // Grab node using share label.
+        let node =
+            recipient::receive_share(share_label, &recipient_key, sharer_forest, sharer_store)
+                .await
+                .unwrap();
+
+        let file = node.as_file().unwrap();
+
+        let content = file.get_content(sharer_forest, sharer_store).await.unwrap();
+        let content_string = String::from_utf8(content).unwrap();
+        assert_eq!(content_string, "Hello World!".to_string());
     }
 
     #[async_std::test]
