@@ -310,7 +310,7 @@ impl PrivateNodeHeader {
 
         Ok(Self {
             inumber,
-            ratchet: Ratchet::default(),
+            ratchet: Ratchet::zero([0; 32]),
             bare_name,
         })
     }
